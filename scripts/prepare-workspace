@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""Prepare a KerncapPlus workspace for ASMKernelOptimizer."""
+
+from __future__ import annotations
+
+import argparse
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+
+HELPER_REPO = "git@github.com:leeliu103/ROCprofilerHelper.git"
+REQUIRED_ROCM_PATHS = (
+    "rocm-systems/projects/rocprofiler-sdk",
+    "rocm-systems/projects/aqlprofile",
+    "rocm-systems/projects/rocprof-trace-decoder",
+)
+
+
+@dataclass(frozen=True)
+class KernelEntry:
+    display_index: int
+    name: str
+
+
+def run(cmd: list[str], cwd: Path | None = None, capture: bool = False) -> subprocess.CompletedProcess[str]:
+    print("+ " + shlex.join(cmd), flush=True)
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        text=True,
+        capture_output=capture,
+        check=False,
+    )
+
+
+def require_tool(name: str) -> None:
+    if shutil.which(name) is None:
+        raise SystemExit(
+            f"required command not found: {name}\n"
+            "Install KerncapPlus first, then rerun this script."
+        )
+
+
+def parse_kernel_entries(output: str) -> list[KernelEntry]:
+    entries: list[KernelEntry] = []
+    for line in output.splitlines():
+        match = re.match(r"^\s*(\d+)\s+(.+?)\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s*$", line)
+        if not match:
+            continue
+        name = match.group(2).strip()
+        if not name or name.lower() == "kernel":
+            continue
+        entries.append(KernelEntry(len(entries), name))
+    return entries
+
+
+def choose_kernel(entries: list[KernelEntry]) -> str:
+    if entries:
+        print("\nKernels:")
+        for entry in entries:
+            print(f"[{entry.display_index}] {entry.name}")
+        print()
+        choice = input("Choose kernel number or enter kernel name: ").strip()
+        if choice.isdigit():
+            index = int(choice)
+            if 0 <= index < len(entries):
+                return entries[index].name
+            raise SystemExit(f"kernel selection out of range: {choice}")
+        if choice:
+            return choice
+        raise SystemExit("empty kernel selection")
+
+    print("\nCould not parse kernels from `kerncap-plus list` output.")
+    choice = input("Enter kernel name or substring to capture: ").strip()
+    if not choice:
+        raise SystemExit("empty kernel selection")
+    return choice
+
+
+def ensure_profiler_sources(workspace: Path) -> None:
+    if all((workspace / path).is_dir() for path in REQUIRED_ROCM_PATHS):
+        print("ROCprofiler sources already present.")
+        return
+
+    rocm_systems = workspace / "rocm-systems"
+    if rocm_systems.exists():
+        print(f"Removing incomplete ROCm source checkout: {rocm_systems}")
+        shutil.rmtree(rocm_systems)
+
+    helper_dir = workspace / "ROCprofilerHelper"
+    if not helper_dir.exists():
+        proc = run(["git", "clone", HELPER_REPO, str(helper_dir)])
+        if proc.returncode != 0:
+            raise SystemExit(proc.returncode)
+
+    setup_script = helper_dir / "setup.sh"
+    if not setup_script.is_file():
+        raise SystemExit(f"missing setup script: {setup_script}")
+
+    proc = run(["bash", str(setup_script)], cwd=workspace)
+    if proc.returncode != 0:
+        raise SystemExit(proc.returncode)
+
+    missing = [path for path in REQUIRED_ROCM_PATHS if not (workspace / path).is_dir()]
+    if missing:
+        raise SystemExit("missing ROCm source paths after setup: " + ", ".join(missing))
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--cmd", required=True, help="Workload command to profile and capture.")
+    parser.add_argument("--source-dir", required=True, type=Path, help="Source root for KerncapPlus capture.")
+    parser.add_argument("--workspace", required=True, type=Path, help="Output captured workspace.")
+    args = parser.parse_args()
+
+    require_tool("kerncap-plus")
+
+    workspace = args.workspace.expanduser().resolve()
+    source_dir = args.source_dir.expanduser().resolve()
+    if workspace.exists():
+        raise SystemExit(f"workspace already exists: {workspace}")
+    if not source_dir.is_dir():
+        raise SystemExit(f"source directory does not exist: {source_dir}")
+
+    list_proc = run(["kerncap-plus", "list", "--cmd", args.cmd], capture=True)
+    if list_proc.stdout:
+        print(list_proc.stdout, end="")
+    if list_proc.stderr:
+        print(list_proc.stderr, end="", file=sys.stderr)
+    if list_proc.returncode != 0:
+        return list_proc.returncode
+
+    kernel = choose_kernel(parse_kernel_entries(list_proc.stdout))
+    print(f"selected kernel: {kernel}")
+
+    capture_proc = run(
+        [
+            "kerncap-plus",
+            "capture",
+            "--kernel",
+            kernel,
+            "--cmd",
+            args.cmd,
+            "--source-dir",
+            str(source_dir),
+            "--workspace",
+            str(workspace),
+        ]
+    )
+    if capture_proc.returncode != 0:
+        return capture_proc.returncode
+
+    ensure_profiler_sources(workspace)
+
+    print("\nPrepared workspace:")
+    print(f"  {workspace}")
+    print("\nNext:")
+    print(f"  cd {Path(__file__).resolve().parents[1]}")
+    print(
+        "  ./scripts/asm-kernel-optimizer "
+        f"--workspace {workspace} "
+        "--iterations 50 "
+        "--required-speedup-percent 3 "
+        "--agent codex"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

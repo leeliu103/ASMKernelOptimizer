@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""Launch ASMKernelOptimizer with a concrete run configuration."""
+
+from __future__ import annotations
+
+import argparse
+import os
+import signal
+import subprocess
+from pathlib import Path
+
+
+REQUIRED_WORKSPACE_FILES = (
+    "variant/variant.s",
+    "reference/kernel.s",
+    "reference/kernel.ll",
+    "reference/module.s",
+    "workspace.json",
+)
+
+REQUIRED_PROFILER_PATHS = (
+    "rocm-systems/projects/rocprofiler-sdk",
+    "rocm-systems/projects/aqlprofile",
+    "rocm-systems/projects/rocprof-trace-decoder",
+)
+
+
+def require_paths(workspace: Path, paths: tuple[str, ...], kind: str) -> None:
+    missing = [path for path in paths if not (workspace / path).exists()]
+    if missing:
+        raise SystemExit(f"missing {kind}: " + ", ".join(str(workspace / path) for path in missing))
+
+
+def write_run_config(repo_root: Path, workspace: Path, iterations: int, speedup: str) -> None:
+    (repo_root / "run.md").write_text(
+        "# Run Configuration\n\n"
+        "```text\n"
+        f"workspace: {workspace}\n"
+        f"iterations: {iterations}\n"
+        f"required_speedup_percent: {speedup}\n"
+        "```\n",
+        encoding="utf-8",
+    )
+
+
+def write_trace(workspace: Path, iterations: int, speedup: str, agent: str) -> None:
+    (workspace / "trace.md").write_text(
+        "# Trace\n\n"
+        "```text\n"
+        f"workspace: {workspace}\n"
+        f"iterations: {iterations}\n"
+        f"required_speedup_percent: {speedup}\n"
+        f"agent: {agent}\n"
+        "```\n",
+        encoding="utf-8",
+    )
+
+
+def agent_command(agent: str) -> list[str]:
+    prompt = "Read master.md and run the ASM kernel optimization workflow."
+    if agent == "codex":
+        return ["codex", "-c", 'model_provider="amd-openai"', prompt]
+    if agent == "claude":
+        return ["claude", prompt]
+    raise SystemExit(f"unsupported agent: {agent}")
+
+
+def run_agent(cmd: list[str], repo_root: Path) -> int:
+    proc = subprocess.Popen(cmd, cwd=repo_root, start_new_session=True)
+    try:
+        return proc.wait()
+    except KeyboardInterrupt:
+        os.killpg(proc.pid, signal.SIGINT)
+        try:
+            return proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGTERM)
+            return proc.wait()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--workspace", required=True, type=Path)
+    parser.add_argument("--iterations", required=True, type=int)
+    parser.add_argument("--required-speedup-percent", required=True)
+    parser.add_argument("--agent", required=True, choices=("codex", "claude"))
+    args = parser.parse_args()
+
+    repo_root = Path(__file__).resolve().parents[1]
+    workspace = args.workspace.expanduser().resolve()
+
+    if not workspace.is_dir():
+        raise SystemExit(f"workspace does not exist: {workspace}")
+    require_paths(workspace, REQUIRED_WORKSPACE_FILES, "workspace files")
+    require_paths(workspace, REQUIRED_PROFILER_PATHS, "profiler source paths")
+
+    write_run_config(repo_root, workspace, args.iterations, args.required_speedup_percent)
+    write_trace(workspace, args.iterations, args.required_speedup_percent, args.agent)
+
+    print(f"Wrote {repo_root / 'run.md'}", flush=True)
+    print(f"Wrote {workspace / 'trace.md'}", flush=True)
+    print(f"Launching {args.agent}...", flush=True)
+    return run_agent(agent_command(args.agent), repo_root)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
