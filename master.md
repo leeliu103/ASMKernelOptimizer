@@ -34,9 +34,9 @@ Ask the subagent to work toward the goal and report back when it has a candidate
 Repeat until the checks in `criteria.md` pass:
 
 1. Wait for the subagent report.
-2. Append the subagent report to `trace.md`.
+2. Append the subagent report to `<workspace>/trace.md`.
 3. Run all checks in `criteria.md`.
-4. Append the verification result to `trace.md`.
+4. Append the verification result to `<workspace>/trace.md`.
 5. If the checks in `criteria.md` pass, stop with success.
 6. If the checks in `criteria.md` do not pass, send the acceptance verification failure reason back to the subagent and ask it to continue.
 
@@ -48,4 +48,4 @@ Do not accept a subagent success claim without running `criteria.md`.
 
 Do not stop with success unless the checks in `criteria.md` pass.
 
-Keep `trace.md` append-only during a run.
+Keep `<workspace>/trace.md` append-only during a run.
