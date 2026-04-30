@@ -33,7 +33,7 @@ Ask the subagent to work toward the goal and report back when it has a candidate
 
 Repeat until the checks in `criteria.md` pass:
 
-1. Wait for the subagent report.
+1. Wait for the subagent report. Do not perform other work while waiting.
 2. Append the subagent report to `<workspace>/trace.md`.
 3. Run all checks in `criteria.md`.
 4. Append the verification result to `<workspace>/trace.md`.
@@ -43,6 +43,8 @@ Repeat until the checks in `criteria.md` pass:
 ## Rules
 
 Only the master agent decides whether the task is complete.
+
+While waiting for the subagent report, do not inspect files, run commands, edit files, verify criteria, or start other work.
 
 Do not accept a subagent success claim without running `criteria.md`.
 
