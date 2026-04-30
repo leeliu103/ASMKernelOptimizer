@@ -37,6 +37,12 @@ speedup_percent = ((baseline_time - candidate_time) / baseline_time) * 100
 
 Use the average benchmark time as `baseline_time` and `candidate_time` unless the user specifies another metric.
 
+## Candidate Integrity
+
+Before accepting success, the master must inspect the ASM diff against
+`reference/kernel.s`. Reject changes that bypass required computation or exploit
+replay/validation artifacts instead of optimizing the kernel.
+
 ## Stop Rule
 
 If all candidate checks pass and `speedup_percent >= <required_speedup_percent>`, the master agent may stop with success.
