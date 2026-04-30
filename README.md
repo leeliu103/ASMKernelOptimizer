@@ -29,6 +29,21 @@ The optimization target is always one captured real workload kernel. The editabl
   --workspace <workspace>
 ```
 
+Arguments:
+
+- `--cmd`: real workload command used for profiling and capture
+- `--source-dir`: project source directory passed to KerncapPlus; it must contain the original kernel source
+- `--workspace`: new output directory for the captured ASM workspace
+
+Example for llama.cpp:
+
+```bash
+./scripts/prepare-workspace \
+  --cmd '/app/llama.cpp//build/bin/llama-bench -ngl 999 -fa 1 -n "128" -p 0 -m /mnt/nas_share/models/gguf/gpt-oss-20b-GGUF/gpt-oss-20b-mxfp4.gguf' \
+  --source-dir /app/llama.cpp/ggml/src \
+  --workspace /app/mmvq_g39_128_true_asmko
+```
+
 This command:
 
 - runs `kerncap-plus list`
