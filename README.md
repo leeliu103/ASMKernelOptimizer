@@ -18,6 +18,13 @@ The optimization target is always one captured real workload kernel. The editabl
 <workspace>/variant/variant.s
 ```
 
+## Prerequisites
+
+ASMKernelOptimizer depends on KerncapPlus
+(https://github.com/leeliu103/KerncapPlus) for captured-kernel workspace
+creation, ASM assembly, validation, and benchmarking. Install KerncapPlus first
+and make sure `kerncap-plus --help` runs from your shell.
+
 ## Commands
 
 ### 1. Prepare A Workspace
@@ -68,6 +75,13 @@ the worker.
   --required-speedup-percent 3 \
   --agent codex
 ```
+
+Arguments:
+
+- `--workspace`: prepared KerncapPlus workspace to optimize
+- `--iterations`: benchmark replay iterations passed to `kerncap-plus bench-baseline` and `kerncap-plus bench`
+- `--required-speedup-percent`: minimum speedup required for acceptance
+- `--agent`: agent harness to launch, either `codex` or `claude`
 
 Use `--agent claude` to launch Claude Code instead:
 
