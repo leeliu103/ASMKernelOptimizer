@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import shlex
 import shutil
@@ -14,6 +15,7 @@ from pathlib import Path
 
 
 HELPER_REPO = "git@github.com:leeliu103/ROCprofilerHelper.git"
+RDNA_ISA_REPO = "git@github.com:leeliu103/rdnaISA.git"
 REQUIRED_ROCM_PATHS = (
     "rocm-systems/projects/rocprofiler-sdk",
     "rocm-systems/projects/aqlprofile",
@@ -25,6 +27,39 @@ REQUIRED_ROCM_PATHS = (
 class KernelEntry:
     display_index: int
     name: str
+
+
+def detect_isa_arch(workspace: Path) -> str:
+    dispatch_path = workspace / "capture" / "dispatch.json"
+    if not dispatch_path.is_file():
+        raise SystemExit(f"missing dispatch metadata: {dispatch_path}")
+
+    try:
+        with dispatch_path.open(encoding="utf-8") as f:
+            dispatch = json.load(f)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"invalid JSON in {dispatch_path}: {exc}") from exc
+    if not isinstance(dispatch, dict):
+        raise SystemExit(f"invalid dispatch metadata in {dispatch_path}: expected JSON object")
+
+    isa_name = dispatch.get("isa_name")
+    if not isinstance(isa_name, str) or not isa_name.strip():
+        raise SystemExit(f"missing or invalid isa_name in {dispatch_path}")
+
+    match = re.fullmatch(r"amdgcn-amd-amdhsa--(gfx[0-9a-z]+)", isa_name.strip())
+    if match is None:
+        raise SystemExit(f"could not parse AMD gfx target from isa_name={isa_name!r}")
+
+    target = match.group(1)
+    if re.fullmatch(r"gfx11[0-9a-z]*", target):
+        return "rdna3"
+    if re.fullmatch(r"gfx12[0-9a-z]*", target):
+        return "rdna4"
+
+    raise SystemExit(
+        f"unsupported AMD ISA target from {dispatch_path}: {target}. "
+        "Only RDNA3/RDNA4 targets are supported."
+    )
 
 
 def run(cmd: list[str], cwd: Path | None = None, capture: bool = False) -> subprocess.CompletedProcess[str]:
@@ -111,6 +146,38 @@ def ensure_profiler_sources(workspace: Path) -> None:
         raise SystemExit("missing ROCm source paths after setup: " + ", ".join(missing))
 
 
+def ensure_isa_json(workspace: Path, isa_arch: str) -> None:
+    dep_dir = workspace / ".dep"
+    rdna_isa_dir = dep_dir / "rdnaISA"
+    isa_json = workspace / "isa" / "isa.json"
+
+    dep_dir.mkdir(parents=True, exist_ok=True)
+    if not rdna_isa_dir.exists():
+        proc = run(["git", "clone", RDNA_ISA_REPO, str(rdna_isa_dir)])
+        if proc.returncode != 0:
+            raise SystemExit(proc.returncode)
+    if not rdna_isa_dir.is_dir():
+        raise SystemExit(f"rdnaISA dependency path is not a directory: {rdna_isa_dir}")
+
+    proc = run(
+        [
+            sys.executable,
+            "-m",
+            "rdna_isa",
+            "extract-isa",
+            "--arch",
+            isa_arch,
+            "--out",
+            str(isa_json),
+        ],
+        cwd=rdna_isa_dir,
+    )
+    if proc.returncode != 0:
+        raise SystemExit(proc.returncode)
+    if not isa_json.is_file():
+        raise SystemExit(f"rdnaISA did not generate expected ISA JSON: {isa_json}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cmd", required=True, help="Workload command to profile and capture.")
@@ -155,7 +222,9 @@ def main() -> int:
     if capture_proc.returncode != 0:
         return capture_proc.returncode
 
+    isa_arch = detect_isa_arch(workspace)
     ensure_profiler_sources(workspace)
+    ensure_isa_json(workspace, isa_arch)
 
     print("\nPrepared workspace:")
     print(f"  {workspace}")

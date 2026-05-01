@@ -50,6 +50,7 @@ This command:
 - asks which kernel to capture
 - runs `kerncap-plus capture`
 - installs the profiler source context needed by the optimization workflow
+- generates `<workspace>/isa/isa.json` for the RDNA3/RDNA4 instruction reference
 - leaves a ready-to-edit KerncapPlus workspace
 
 The workspace must not already exist.
@@ -119,6 +120,7 @@ check itself and may stop only when the candidate strictly passes it.
 ```text
 goal.md          optimization objective
 kerncapplus.md   KerncapPlus workspace and command context
+isa.md           generated RDNA ISA reference context
 criteria.md      objective stop rule
 run.md           concrete workspace, iteration count, and speedup target
 master.md        supervisor-agent instructions

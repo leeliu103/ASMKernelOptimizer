@@ -21,6 +21,7 @@ Create a subagent and instruct it to read:
 ```text
 goal.md
 kerncapplus.md
+isa.md
 criteria.md
 run.md
 profiler.md

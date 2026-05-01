@@ -14,6 +14,8 @@ Use `goal.md` as the objective and `criteria.md` as the acceptance target.
 
 Use `kerncapplus.md` for the KerncapPlus workflow.
 
+Use `isa.md` for the generated RDNA ISA reference.
+
 Use `profiler.md` when profiling is needed.
 
 When the master sends an acceptance verification failure, continue improving the candidate.
