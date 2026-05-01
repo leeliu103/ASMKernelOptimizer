@@ -18,6 +18,8 @@ Use `isa.md` for the generated RDNA ISA reference.
 
 Use `profiler.md` when profiling is needed.
 
+Use `strategy.md` for additional user-provided optimization context.
+
 When the master sends an acceptance verification failure, continue improving the candidate.
 
 ## Rules

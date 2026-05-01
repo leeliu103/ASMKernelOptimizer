@@ -55,6 +55,10 @@ This command:
 
 The workspace must not already exist.
 
+Update `strategy.md` before running the optimizer. It provides additional
+user-provided optimization context for the worker. Stale strategy can mislead
+the worker.
+
 ### 2. Run The Optimizer
 
 ```bash
@@ -123,6 +127,7 @@ kerncapplus.md   KerncapPlus workspace and command context
 isa.md           generated RDNA ISA reference context
 criteria.md      objective stop rule
 run.md           concrete workspace, iteration count, and speedup target
+strategy.md      additional user-provided optimization context
 master.md        supervisor-agent instructions
 subagent.md      worker-subagent instructions
 profiler.md      profiling context

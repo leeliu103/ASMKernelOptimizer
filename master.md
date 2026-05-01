@@ -25,6 +25,7 @@ isa.md
 criteria.md
 run.md
 profiler.md
+strategy.md
 subagent.md
 ```
 
