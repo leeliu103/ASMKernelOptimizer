@@ -122,12 +122,15 @@ def ensure_profiler_sources(workspace: Path) -> None:
         print("ROCprofiler sources already present.")
         return
 
+    dep_dir = workspace / ".dep"
+    helper_dir = dep_dir / "ROCprofilerHelper"
+    dep_dir.mkdir(parents=True, exist_ok=True)
+
     rocm_systems = workspace / "rocm-systems"
     if rocm_systems.exists():
         print(f"Removing incomplete ROCm source checkout: {rocm_systems}")
         shutil.rmtree(rocm_systems)
 
-    helper_dir = workspace / "ROCprofilerHelper"
     if not helper_dir.exists():
         proc = run(["git", "clone", HELPER_REPO, str(helper_dir)])
         if proc.returncode != 0:
